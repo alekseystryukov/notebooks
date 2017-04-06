@@ -377,9 +377,10 @@ def load_in_parallel(stock, date):
 
 def main():
     today = datetime.now(tz=DATA_TIMEZONE).replace(second=0, microsecond=0)
+    print(today)
     if today.hour < 16:
         logger.error("It's too early to run the scrapper")
-        #return
+        return
 
     _, last_trading_date = get_trading_dates(today)
     if last_trading_date.date() != today.date():
