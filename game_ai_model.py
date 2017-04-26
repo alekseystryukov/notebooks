@@ -69,7 +69,7 @@ class AI:
 
         # saver
         self.saver = tf.train.Saver()
-        if os.path.exists(self.variables_file):
+        if os.path.exists("{}.meta".format(self.variables_file)):
             self.saver.restore(self.session, self.variables_file)
             print("Model is restored.")
 
