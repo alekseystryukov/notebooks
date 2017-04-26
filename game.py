@@ -2,50 +2,54 @@
 import pygame
 from pygame.locals import *
 from sys import exit
-from datetime import datetime
+from datetime import datetime, timedelta
 import math
 
-
 SCREEN = (1280, 720)
-SCREEN_FPS = 60
+SCREEN_FPS = 30
 SCREEN_UPDATE_INTERVAL = 10 ** 6 / SCREEN_FPS  # microseconds
+MIN_UPDATES_PER_SECOND = 20  # required update cycle rate
 
 BALL_RADIUS = 40
 BALL_DIAMETER = BALL_RADIUS * 2
 
 MOVE_SPEED = 180
-JUMP_SPEED = 500
+JUMP_SPEED = 800
 
 AIR_FRICTION = 40
 PLATFORM_FRICTION = 150
-GRAVITY = 500
-ELASTICITY = .25
+GRAVITY = 1000
+ELASTICITY = .10
 
 WHITE = (255, 255, 255)
 BACKGROUND_COLOR = Color("#2b2a45")
 BALL_COLOR = Color("#c78a84")
 PLATFORM_COLOR = Color("#5483fb")
 
-PLATFORM_PARAMS = (SCREEN[0] / 8, 10)
+PLATFORM_PARAMS = (SCREEN[0] / 8, 12)
 
 PLATFORM_HEIGHTS = (
     355,
-    540,
-    300,
-    540,
-    300,
-    540,
-    300,
+    200,
+    640,
+    240,
+    400,
+    550,
+    100,
     355,
 )
-
+PLATFORM_SPEED = 50
 GAME_DURATION = 60
-DEAD_LINE = 550
+TOP_LINE = 100
+DEAD_LINE = 650
 
 
 class Game:
 
-    def __init__(self):
+    def __init__(self, ai_connect=None):
+        self.ai_connect = ai_connect
+        if self.ai_connect:
+            self.ai_connect.init(self)
 
         pygame.init()
         self.screen = pygame.display.set_mode(SCREEN, 0, 32)
@@ -60,41 +64,62 @@ class Game:
             platform = pygame.Surface(PLATFORM_PARAMS)
             platform = platform.convert()
             platform.fill(PLATFORM_COLOR)
-            self.platforms.append(platform)
+            if i == 0 or i + 1 == len(PLATFORM_HEIGHTS):
+                speed = 0
+            else:
+                speed = PLATFORM_SPEED * (2 ** (i % 2))
+            self.platforms.append(
+                dict(
+                    surface=platform,
+                    x=i * PLATFORM_PARAMS[0],
+                    y=PLATFORM_HEIGHTS[i],
+                    speed=speed,
+                )
+            )
 
         circle_sur = pygame.Surface((BALL_DIAMETER, BALL_DIAMETER))
         self.circle = pygame.draw.circle(circle_sur, BALL_COLOR, (BALL_RADIUS, BALL_RADIUS), BALL_RADIUS)
         self.circle = circle_sur.convert()
         self.circle.set_colorkey((0, 0, 0))
         self.circle_x = self.circle_y = self.speed_x = self.speed_y = 0
-        self.game_start = datetime.now()
+
         self.reset_game()
 
         self.best_score = None
+        self.is_started = False
         self.clock = pygame.time.Clock()
-        self.last_screen_update = datetime.now()
+        now = datetime.now()
+        self.last_screen_update = now
+        self.game_start = now
+        self.current_time = now
         self.font = pygame.font.SysFont("calibri", 40)
+
+    def start_game(self):
+        self.is_started = True
+        now = datetime.now()
+        self.game_start = now
+        self.current_time = now
+        if self.ai_connect:
+            self.ai_connect.on_game_start()
 
     def reset_game(self):
         self.circle_x, self.circle_y = 0, PLATFORM_HEIGHTS[0] - BALL_DIAMETER
         self.speed_x = self.speed_y = 0
-        self.game_start = datetime.now()
+        self.is_started = False
 
     def update(self):
-        now = datetime.now()
-        time_passed = self.clock.tick(500)
+        time_passed = self.clock.tick(100)  # milliseconds 500
+        if 1000/time_passed < MIN_UPDATES_PER_SECOND:
+            # if fps is too low, the game will run slower, but physics will work
+            time_passed = 1000 / MIN_UPDATES_PER_SECOND
+        self.current_time += timedelta(milliseconds=time_passed)  # all timers depend on fps
         time_sec = time_passed / 1000
 
         #  COLLISIONS
         # top and bottom
-        height = SCREEN[1] - BALL_DIAMETER
         if self.circle_y <= 0:
             self.speed_y = -self.speed_y * ELASTICITY
             self.circle_y = 0
-
-        elif self.circle_y >= height:
-            self.speed_y = -self.speed_y * ELASTICITY
-            self.circle_y = height
 
         # left and right
         width = SCREEN[0] - BALL_DIAMETER
@@ -107,20 +132,21 @@ class Game:
             self.circle_x = width
 
         # platforms
-        for n, y in enumerate(PLATFORM_HEIGHTS):
-            x = n * PLATFORM_PARAMS[0]
+        ball_is_controllable = False
+        ball_is_on_platform = False
+        for n, platform in enumerate(self.platforms):
+            y, x = platform['y'], platform['x']
+
+            # collisions
             coll = manage_collisions(self.circle_x, self.circle_y, BALL_RADIUS,
                                      self.speed_x, self.speed_y,
                                      x, y, *PLATFORM_PARAMS)
             if coll:
                 self.circle_x, self.circle_y, self.speed_x, self.speed_y = coll
+            # -- collisions
 
-        ball_is_controllable = False
-        ball_is_on_platform = False
-        for n, y in enumerate(PLATFORM_HEIGHTS):
             if 0 <= y - (self.circle_y + BALL_DIAMETER) < 10:
                 w = PLATFORM_PARAMS[0]
-                x = n * w
                 if x + w >= self.circle_x + BALL_RADIUS >= x:
                     ball_is_controllable = True
                     if y - (self.circle_y + BALL_DIAMETER) < 2:
@@ -128,8 +154,13 @@ class Game:
 
                         # if it is the last one, you win
                         if len(PLATFORM_HEIGHTS) - n == 1:
-                            self.best_score = (now - self.game_start).seconds
+                            score = (self.current_time - self.game_start).seconds
+                            if not self.best_score or self.best_score > score:
+                                self.best_score = score
                             self.reset_game()
+
+                            if self.ai_connect:
+                                self.ai_connect.on_game_win(GAME_DURATION - score)
         # PHYSICS
         # friction
         abs_speed_x = abs(self.speed_x)
@@ -145,47 +176,68 @@ class Game:
         # gravity
         if not ball_is_on_platform:
             self.speed_y += GRAVITY * time_sec
+            if self.speed_y > GRAVITY:
+                self.speed_y = GRAVITY
+
+        if self.ai_connect:
+            self.ai_connect.regular_task(self.current_time)
 
         for event in pygame.event.get():
             if event.type == QUIT:
                 exit()
 
-            if ball_is_controllable:
-                if event.type == KEYDOWN:
-                    if event.key == K_UP:
-                        self.speed_y = -JUMP_SPEED
-                    elif event.key == K_DOWN:
-                        self.speed_y = JUMP_SPEED
-                    elif event.key == K_RIGHT:
-                        self.speed_x = MOVE_SPEED
-                    elif event.key == K_LEFT:
-                        self.speed_x = -MOVE_SPEED
+            if event.type == KEYDOWN:
+                if self.is_started:
+                    if ball_is_controllable:
+                        if event.key == K_UP:
+                            self.speed_y = -JUMP_SPEED
+                        elif event.key == K_DOWN:
+                            self.speed_y = JUMP_SPEED
+                        elif event.key == K_RIGHT:
+                            self.speed_x = MOVE_SPEED
+                        elif event.key == K_LEFT:
+                            self.speed_x = -MOVE_SPEED
+                else:
+                    self.start_game()
 
-        # new ball position
+        # new positions
         self.circle_x += self.speed_x * time_sec
         self.circle_y += self.speed_y * time_sec
+        for platform in self.platforms:
+            if platform['y'] >= DEAD_LINE or platform['y'] <= TOP_LINE:
+                platform['y'] = DEAD_LINE if platform['y'] >= DEAD_LINE else TOP_LINE
+                platform['speed'] *= -1
+            platform['y'] += platform['speed'] * time_sec
 
-        if (now - self.last_screen_update).microseconds > SCREEN_UPDATE_INTERVAL:
-            self.last_screen_update = now
+        if (self.current_time - self.last_screen_update).microseconds > SCREEN_UPDATE_INTERVAL:
+            self.last_screen_update = self.current_time
             # draw the world
             self.screen.blit(self.background, (0, 0))
-            for n, platform in enumerate(self.platforms):
-                self.screen.blit(platform, (n * PLATFORM_PARAMS[0], PLATFORM_HEIGHTS[n]))
+            for platform in self.platforms:
+                self.screen.blit(platform['surface'], (platform['x'], platform['y']))
 
             self.screen.blit(self.circle, (self.circle_x, self.circle_y))
 
-            timer = (datetime.now() - self.game_start).seconds
-            time_title = self.font.render("Timer:".format(timer), True, WHITE)
-            time = self.font.render("{} sec".format(timer), True, WHITE)
             score_title = self.font.render("Best score:", True, WHITE)
             score = self.font.render("-" if self.best_score is None else"{} sec".format(self.best_score), True, WHITE)
-            self.screen.blit(time_title, (30, 20))
-            self.screen.blit(time, (40, 60))
             self.screen.blit(score_title, (SCREEN[0] - 170, 20))
             self.screen.blit(score, (SCREEN[0] - 140, 60))
 
-            if timer > GAME_DURATION or self.circle_y > DEAD_LINE:
-                self.reset_game()
+            if self.is_started:
+                timer = (self.current_time - self.game_start).seconds
+                time_title = self.font.render("Timer:".format(timer), True, WHITE)
+                time = self.font.render("{} sec".format(timer), True, WHITE)
+                self.screen.blit(time_title, (30, 20))
+                self.screen.blit(time, (40, 60))
+
+                if timer > GAME_DURATION or self.circle_y > DEAD_LINE:
+                    score = int(self.circle_x / BALL_DIAMETER)
+                    self.reset_game()
+                    if self.ai_connect:
+                        self.ai_connect.on_game_los(score)
+            else:
+                start_text = self.font.render("Press any key to start the game", True, WHITE)
+                self.screen.blit(start_text, (400, 350))
 
             pygame.display.update()
 
@@ -205,12 +257,14 @@ def manage_collisions(x1, y1, r, sx1, sy1, x2, y2, w2, h2):  # rectangles collis
 
         if y2 + h2 / 2 >= center_y >= y2 - r:  # collides from the top
             y_collision = True
-            new_speed_y1 = -new_speed_y1 * ELASTICITY
+            if new_speed_y1 > 0:
+                new_speed_y1 = -abs(new_speed_y1 * ELASTICITY)
             new_y1 = y2 - r * 2
 
         elif y2 + h2 + r >= center_y > y2 + h2 / 2:  # collides from the bottom
             y_collision = True
-            new_speed_y1 = -new_speed_y1 * ELASTICITY
+            if new_speed_y1 < 0:
+                new_speed_y1 = abs(new_speed_y1 * ELASTICITY)
             new_y1 = y2 + h2
 
     if y2 + h2 > center_y > y2:  # is from the left or right
@@ -262,7 +316,4 @@ def manage_collisions(x1, y1, r, sx1, sy1, x2, y2, w2, h2):  # rectangles collis
 if __name__ == "__main__":
     g = Game()
     while True:
-        try:
-            g.update()
-        except ValueError:
-            break
+        g.update()
