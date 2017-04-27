@@ -70,7 +70,7 @@ class AIConnector:
         sleep(1)
 
     def on_game_los(self, score):
-        if not self.wins:
+        if self.wins < 10:
             self.ai.train(self.images, self.actions, score)
             sleep(1)
 
