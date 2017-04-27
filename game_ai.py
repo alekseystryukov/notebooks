@@ -20,6 +20,7 @@ class AIConnector:
         options, args = parser.parse_args()
 
         self.game = None
+        self.wins = 0
         self.images = []
         self.actions = []
         self.ai = AI(options.file)
@@ -62,12 +63,16 @@ class AIConnector:
             self.game.start_game()
 
     def on_game_win(self, score):
-        self.ai.train(self.images, self.actions, score * 10)
+        actions_number = len([a for a in self.actions if a])
+        tranquility = len(self.actions) / actions_number
+        self.ai.train(self.images, self.actions, int(score * tranquility))
+        self.wins += 1
         sleep(1)
 
     def on_game_los(self, score):
-        self.ai.train(self.images, self.actions, score)
-        sleep(1)
+        if not self.wins:
+            self.ai.train(self.images, self.actions, score)
+            sleep(1)
 
 
 if __name__ == "__main__":
