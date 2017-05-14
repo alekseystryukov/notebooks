@@ -3,6 +3,7 @@ import pygame
 from pygame.locals import *
 from sys import exit
 from datetime import datetime, timedelta
+from collections import deque
 import math
 
 SCREEN = (1280, 720)
@@ -85,6 +86,7 @@ class Game:
 
         self.reset_game()
 
+        self.stats = deque(maxlen=100)
         self.best_score = None
         self.is_started = False
         self.clock = pygame.time.Clock()
@@ -106,6 +108,16 @@ class Game:
         self.circle_x, self.circle_y = 0, PLATFORM_HEIGHTS[0] - BALL_DIAMETER
         self.speed_x = self.speed_y = 0
         self.is_started = False
+
+        # set platforms into initial state
+        for i, platform in enumerate(self.platforms):
+            if i == 0 or i + 1 == len(PLATFORM_HEIGHTS):
+                speed = 0
+            else:
+                speed = PLATFORM_SPEED * (2 ** (i % 2))
+            platform['speed'] = speed
+            platform['x'] = i * PLATFORM_PARAMS[0]
+            platform['y'] = PLATFORM_HEIGHTS[i]
 
     def update(self):
         time_passed = self.clock.tick(100)  # milliseconds 500
@@ -158,9 +170,10 @@ class Game:
                             if not self.best_score or self.best_score > score:
                                 self.best_score = score
                             self.reset_game()
+                            self.stats.append(1)
 
                             if self.ai_connect:
-                                self.ai_connect.on_game_win(GAME_DURATION - score)
+                                self.ai_connect.on_game_win(score)
         # PHYSICS
         # friction
         abs_speed_x = abs(self.speed_x)
@@ -203,11 +216,12 @@ class Game:
         # new positions
         self.circle_x += self.speed_x * time_sec
         self.circle_y += self.speed_y * time_sec
-        for platform in self.platforms:
-            if platform['y'] >= DEAD_LINE or platform['y'] <= TOP_LINE:
-                platform['y'] = DEAD_LINE if platform['y'] >= DEAD_LINE else TOP_LINE
-                platform['speed'] *= -1
-            platform['y'] += platform['speed'] * time_sec
+        if self.is_started:
+            for platform in self.platforms:
+                if platform['y'] >= DEAD_LINE or platform['y'] <= TOP_LINE:
+                    platform['y'] = DEAD_LINE if platform['y'] >= DEAD_LINE else TOP_LINE
+                    platform['speed'] *= -1
+                platform['y'] += platform['speed'] * time_sec
 
         if (self.current_time - self.last_screen_update).microseconds > SCREEN_UPDATE_INTERVAL:
             self.last_screen_update = self.current_time
@@ -223,6 +237,12 @@ class Game:
             self.screen.blit(score_title, (SCREEN[0] - 170, 20))
             self.screen.blit(score, (SCREEN[0] - 140, 60))
 
+            wr_title = self.font.render("Win rate:", True, WHITE)
+            wr = self.font.render(
+                "{}% per {}".format(self.win_rate, len(self.stats)), True, WHITE)
+            self.screen.blit(wr_title, (SCREEN[0] - 150, SCREEN[1] - 80))
+            self.screen.blit(wr, (SCREEN[0] - 160, SCREEN[1] - 40))
+
             if self.is_started:
                 timer = (self.current_time - self.game_start).seconds
                 time_title = self.font.render("Timer:".format(timer), True, WHITE)
@@ -233,6 +253,7 @@ class Game:
                 if timer > GAME_DURATION or self.circle_y > DEAD_LINE:
                     score = int(self.circle_x / BALL_DIAMETER)
                     self.reset_game()
+                    self.stats.append(0)
                     if self.ai_connect:
                         self.ai_connect.on_game_los(score)
             else:
@@ -240,6 +261,10 @@ class Game:
                 self.screen.blit(start_text, (400, 350))
 
             pygame.display.update()
+
+    @property
+    def win_rate(self):
+        return int(sum(self.stats)/len(self.stats)*100) if len(self.stats) else 0
 
 
 def manage_collisions(x1, y1, r, sx1, sy1, x2, y2, w2, h2):  # rectangles collision

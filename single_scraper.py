@@ -5,11 +5,8 @@ from datetime import datetime, timedelta
 import pandas as pd
 import requests
 import pytz
-import json
 import csv
 import os
-import threading
-import queue
 import logging
 from time import sleep
 
@@ -158,7 +155,7 @@ def main():
     if not os.path.exists(today_dir):
         os.makedirs(today_dir)
 
-    for stock in get_stocks():
+    for stock in list(get_stocks())[:100]:
         now = datetime.now()
         minute_data = get_minute_data(stock, today)
         if minute_data is not None:
