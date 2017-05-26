@@ -103,7 +103,7 @@ class AIConnector:
         self.inputs = []
         self.actions = []
         self.ai = ConvAI(options.file)
-        self.train = bool(options.train) if options.train is not None else False
+        self.train = int(options.train) if options.train is not None else 0
         self.random = int(options.random or 0)
 
     def init(self, game):
@@ -154,7 +154,8 @@ class AIConnector:
         wins, min_time = self.ai.session.run(self.ai.stats)
         print(wins, min_time)
 
-        if self.train and (self.game.win_rate < 100 and time < min_time + 6 or time < min_time or not min_time):
+        if self.train and (self.game.win_rate < 100 and time <= min_time + self.train or
+                           time < min_time or not min_time):
             speed = 120 / len(self.actions)
             self.ai.train(self.inputs, self.actions, int(100 * speed))
 
