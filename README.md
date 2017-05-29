@@ -4,6 +4,10 @@ Env setup
 
 https://www.vagrantup.com/downloads.html
 
+2) Install git if you don't have it 
+
+https://git-scm.com/download/
+
 2) Clone rep and go in terminal to its folder:
 
 git clone https://github.com/alekseystryukov/notebooks.git && cd notebooks
