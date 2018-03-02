@@ -3,6 +3,7 @@ apt-get update
 apt-get install -y python3-dev
 apt-get install -y python3-pip
 pip3 install --upgrade pip
+pip3 install  matplotlib
 pip3 install jupyter
 pip3 install pandas==0.19.2
 pip3 install pandas-datareader
