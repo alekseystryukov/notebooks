@@ -6,6 +6,8 @@ pip3 install --upgrade pip
 pip3 install  matplotlib==2.1.2
 pip3 install jupyter
 pip3 install pandas==0.19.2
+pip3 install beautifulsoup4==4.6.0
+pip3 install plotly
 
 tar xvzf /vagrant/ta-lib-0.4.0-src.tar.gz
 cd ta-lib/
