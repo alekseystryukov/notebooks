@@ -1,0 +1,12 @@
+version: '3'
+
+services:
+  worker:
+    build: .
+    environment:
+      - PYTHONUNBUFFERED=1
+    user: non_root
+    ports:
+      - "8888:8888"
+    volumes:
+        - .:/app

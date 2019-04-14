@@ -1,0 +1,7 @@
+matplotlib==2.1.2
+pandas
+jupyter
+beautifulsoup4==4.6.0
+plotly
+stockstats
+lxml

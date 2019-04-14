@@ -8,6 +8,7 @@ pip3 install jupyter
 pip3 install pandas==0.19.2
 pip3 install beautifulsoup4==4.6.0
 pip3 install plotly
+pip3 install stockstats
 
 tar xvzf /vagrant/ta-lib-0.4.0-src.tar.gz
 cd ta-lib/
