@@ -123,11 +123,11 @@ class Car(pyglet.sprite.Sprite):
     def get_bounds(self, rel_x, rel_y):
         anchor_y = car_image.anchor_y + 5
         if self.move_ahead > 0:  # top
-            left = - car_image.anchor_x, car_image.texture.height - anchor_y
-            right = car_image.texture.width - car_image.anchor_x, car_image.texture.height - anchor_y
+            left = - car_image.anchor_x, car_image.height - anchor_y
+            right = car_image.width - car_image.anchor_x, car_image.height - anchor_y
         else:
             left = - car_image.anchor_x, - anchor_y
-            right = car_image.texture.width - car_image.anchor_x, - anchor_y
+            right = car_image.width - car_image.anchor_x, - anchor_y
 
         # rotate
         angle = -math.radians(self.rotation)
